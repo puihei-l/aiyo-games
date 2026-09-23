@@ -1,0 +1,19 @@
+{
+  "name": "Aiyo Games",
+  "short_name": "Aiyo",
+  "description": "Minimal social party games with a modern mobile-first experience.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f5f1ec",
+  "theme_color": "#4259f7",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/app-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

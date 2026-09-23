@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Aiyo Games app icon">
+  <rect width="512" height="512" rx="120" fill="#F5F1EC"/>
+  <rect x="72" y="72" width="368" height="368" rx="96" fill="#4259F7"/>
+  <path d="M170 330L256 155L342 330H170Z" fill="#F8FAFF"/>
+  <circle cx="256" cy="222" r="53" fill="#F5F1EC"/>
+  <path d="M204 330H308" stroke="#F5F1EC" stroke-width="24" stroke-linecap="round"/>
+</svg>
