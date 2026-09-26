@@ -32,6 +32,16 @@ export const GAME_REGISTRY: GameDefinition[] = [
     estimatedDuration: 5,
     supportedModes: ['Pass the Phone'],
   },
+  {
+    id: 'wheel',
+    name: 'Spin the Wheel',
+    description: 'Add your own options and spin to pick one at random.',
+    icon: '◉',
+    minimumPlayers: 1,
+    maximumPlayers: 20,
+    estimatedDuration: 2,
+    supportedModes: ['Pass the Phone'],
+  },
 ]
 
 export const BRAND_ASSETS = {
@@ -56,7 +66,7 @@ export const CATEGORY_OPTIONS = [
   'Places',
   'Objects',
   'Jobs',
-  'Movies',
+  'Movies / TV Shows',
   'Technology',
 ] as const
 

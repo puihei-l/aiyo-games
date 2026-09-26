@@ -17,6 +17,12 @@ import {
   createCharadesSession,
   type CharadesSession,
 } from './lib/charadesEngine'
+import {
+  buildWheelGradient,
+  computeSpinDelta,
+  pickWinnerIndex,
+  type WheelOption,
+} from './lib/wheelEngine'
 
 type ScreenName =
   | 'home'
@@ -28,6 +34,8 @@ type ScreenName =
   | 'charadesCountdown'
   | 'charadesPlay'
   | 'charadesResults'
+  | 'wheelSetup'
+  | 'wheelSpin'
 
 type SettingsState = {
   sound: boolean
@@ -54,6 +62,13 @@ function createDefaultPlayers(): Player[] {
   ]
 }
 
+function createDefaultWheelOptions(): WheelOption[] {
+  return [
+    { id: crypto.randomUUID(), label: '' },
+    { id: crypto.randomUUID(), label: '' },
+  ]
+}
+
 const defaultSetup: SetupState = {
   imposterCount: 1,
   category: 'Random',
@@ -67,6 +82,7 @@ const defaultCharadesSetup: CharadesSetupState = {
 
 const SWIPE_COMMIT_THRESHOLD = 90
 const CHARADES_COUNTDOWN_START = 3
+const WHEEL_SPIN_DURATION_MS = 4200
 
 const defaultSettings: SettingsState = {
   sound: true,
@@ -96,6 +112,11 @@ function App() {
   const [isDragging, setIsDragging] = useState(false)
   const dragStartXRef = useRef<number | null>(null)
 
+  const [wheelOptions, setWheelOptions] = useState<WheelOption[]>(createDefaultWheelOptions)
+  const [wheelRotation, setWheelRotation] = useState(0)
+  const [isWheelSpinning, setIsWheelSpinning] = useState(false)
+  const [wheelWinnerId, setWheelWinnerId] = useState<string | null>(null)
+
   const activePlayers = useMemo(
     () => players.filter((player) => player.name.trim().length > 0),
     [players],
@@ -108,6 +129,12 @@ function App() {
     ? setup.imposterCount
     : imposterChoices[0] ?? 1
   const canStart = activePlayers.length >= 3 && activePlayers.length <= 20
+
+  const activeWheelOptions = useMemo(
+    () => wheelOptions.filter((option) => option.label.trim().length > 0),
+    [wheelOptions],
+  )
+  const canSpinWheel = activeWheelOptions.length >= 2
 
   useEffect(() => {
     document.documentElement.dataset.theme = settings.theme
@@ -219,6 +246,10 @@ function App() {
     setDragX(0)
     setIsDragging(false)
     setCountdown(null)
+    setWheelOptions(createDefaultWheelOptions())
+    setWheelRotation(0)
+    setIsWheelSpinning(false)
+    setWheelWinnerId(null)
     setScreen('home')
   }
 
@@ -367,6 +398,77 @@ function App() {
     }
   }
 
+  function updateWheelOption(optionId: string, label: string) {
+    setWheelOptions((current) => {
+      const index = current.findIndex((option) => option.id === optionId)
+
+      if (index === -1) {
+        return current
+      }
+
+      const updated = current.map((option, optionIndex) =>
+        optionIndex === index ? { ...option, label } : option,
+      )
+
+      const isLastRow = index === updated.length - 1
+
+      if (isLastRow && label.trim().length > 0 && updated.length < 12) {
+        updated.push({ id: crypto.randomUUID(), label: '' })
+      }
+
+      while (
+        updated.length > 2 &&
+        updated[updated.length - 1].label.trim().length === 0 &&
+        updated[updated.length - 2].label.trim().length === 0
+      ) {
+        updated.pop()
+      }
+
+      return updated
+    })
+  }
+
+  function removeWheelOption(optionId: string) {
+    setWheelOptions((current) => {
+      if (current.length <= 2) {
+        return current
+      }
+
+      const index = current.findIndex((option) => option.id === optionId)
+
+      if (index === -1) {
+        return current
+      }
+
+      const isBlank = current[index].label.trim().length === 0
+      const isLastRow = index === current.length - 1
+
+      if (isLastRow && isBlank) {
+        return current
+      }
+
+      return current.filter((option) => option.id !== optionId)
+    })
+  }
+
+  function spinWheel() {
+    if (!canSpinWheel || isWheelSpinning) {
+      return
+    }
+
+    const winnerIndex = pickWinnerIndex(activeWheelOptions.length)
+    const delta = computeSpinDelta(wheelRotation, winnerIndex, activeWheelOptions.length)
+
+    setWheelWinnerId(null)
+    setIsWheelSpinning(true)
+    setWheelRotation((current) => current + delta)
+
+    window.setTimeout(() => {
+      setIsWheelSpinning(false)
+      setWheelWinnerId(activeWheelOptions[winnerIndex].id)
+    }, WHEEL_SPIN_DURATION_MS)
+  }
+
   const currentRevealPlayer = session ? session.players[revealIndex] : null
   const imposterNames = session
     ? session.players.filter((player) => session.imposterIds.includes(player.id)).map((player) => player.name)
@@ -381,9 +483,18 @@ function App() {
   const skipTagOpacity = Math.min(1, Math.max(0, -dragX) / SWIPE_COMMIT_THRESHOLD)
   const correctTagOpacity = Math.min(1, Math.max(0, dragX) / SWIPE_COMMIT_THRESHOLD)
 
+  const wheelWinner = wheelWinnerId
+    ? activeWheelOptions.find((option) => option.id === wheelWinnerId) ?? null
+    : null
+
   function goToGame(gameId: string) {
     if (gameId === 'charades') {
       setScreen('charadesSetup')
+      return
+    }
+
+    if (gameId === 'wheel') {
+      setScreen('wheelSetup')
       return
     }
 
@@ -802,6 +913,122 @@ function App() {
                 Change settings
               </button>
               <button type="button" className="subtle-button full-width" onClick={goHome}>
+                Back to home
+              </button>
+            </div>
+          </section>
+        </main>
+      )}
+
+      {screen === 'wheelSetup' && (
+        <main className="screen">
+          <section className="panel">
+            <div className="section-headline">
+              <div>
+                <p className="eyebrow">Setup</p>
+                <h3>Spin the Wheel</h3>
+              </div>
+              <button type="button" className="subtle-button" onClick={goHome}>
+                {BRAND_ASSETS.back} Back
+              </button>
+            </div>
+
+            <div className="section-label-row">
+              <h4>Options</h4>
+              <span>{activeWheelOptions.length}/12</span>
+            </div>
+            <div className="player-list">
+              {wheelOptions.map((option, index) => {
+                const isBlank = option.label.trim().length === 0
+                const isLastRow = index === wheelOptions.length - 1
+                const removeDisabled = wheelOptions.length <= 2 || (isLastRow && isBlank)
+
+                return (
+                  <div key={option.id} className="player-row">
+                    <input
+                      aria-label={`Option ${index + 1}`}
+                      placeholder={`Option ${index + 1}`}
+                      value={option.label}
+                      onChange={(event) => updateWheelOption(option.id, event.target.value)}
+                    />
+                    <button
+                      type="button"
+                      className="ghost-button"
+                      aria-label={`Remove option ${index + 1}`}
+                      onClick={() => removeWheelOption(option.id)}
+                      disabled={removeDisabled}
+                    >
+                      {BRAND_ASSETS.close}
+                    </button>
+                  </div>
+                )
+              })}
+            </div>
+
+            <button
+              type="button"
+              className="primary-button full-width setup-submit"
+              onClick={() => setScreen('wheelSpin')}
+              disabled={!canSpinWheel}
+            >
+              Continue to wheel
+            </button>
+          </section>
+        </main>
+      )}
+
+      {screen === 'wheelSpin' && (
+        <main className="screen center-screen">
+          <section className="panel reveal-panel">
+            <p className="eyebrow">Spin the Wheel</p>
+
+            <div className="wheel-stage">
+              <span className="wheel-pointer" aria-hidden="true">▼</span>
+              <button
+                type="button"
+                className="wheel-dial"
+                onClick={spinWheel}
+                disabled={isWheelSpinning || !canSpinWheel}
+                aria-label="Spin the wheel"
+                style={{
+                  background: buildWheelGradient(activeWheelOptions),
+                  transform: `rotate(${wheelRotation}deg)`,
+                  transition: isWheelSpinning
+                    ? `transform ${WHEEL_SPIN_DURATION_MS}ms cubic-bezier(0.15, 0.65, 0.25, 1)`
+                    : 'none',
+                }}
+              >
+                {activeWheelOptions.map((option, index) => {
+                  const segmentAngle = 360 / activeWheelOptions.length
+                  const midAngle = (index + 0.5) * segmentAngle
+
+                  return (
+                    <span
+                      key={option.id}
+                      className="wheel-label"
+                      style={{ transform: `rotate(${midAngle}deg)` }}
+                    >
+                      <span>{option.label}</span>
+                    </span>
+                  )
+                })}
+              </button>
+            </div>
+
+            {wheelWinner && !isWheelSpinning ? (
+              <div className="wheel-winner">
+                <p className="eyebrow">Winner</p>
+                <h2>{wheelWinner.label}</h2>
+              </div>
+            ) : (
+              <p className="wheel-hint">Tap the wheel to spin</p>
+            )}
+
+            <div className="action-row full-width-row">
+              <button type="button" className="subtle-button" onClick={() => setScreen('wheelSetup')}>
+                Edit options
+              </button>
+              <button type="button" className="subtle-button" onClick={goHome}>
                 Back to home
               </button>
             </div>
