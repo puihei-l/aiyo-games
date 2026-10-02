@@ -1,4 +1,4 @@
-const CACHE_NAME = 'aiyo-games-v1'
+const CACHE_NAME = 'aiyo-games-v2'
 const APP_SHELL = ['/', '/index.html', '/manifest.webmanifest', '/app-icon.svg']
 
 self.addEventListener('install', (event) => {
@@ -26,23 +26,19 @@ self.addEventListener('fetch', (event) => {
     return
   }
 
+  // Network-first: always serve the latest deploy when online. Only fall
+  // back to the cache (for basic offline support) when the network fails.
   event.respondWith(
-    caches.match(event.request).then((cached) => {
-      if (cached) {
-        return cached
-      }
+    fetch(event.request)
+      .then((response) => {
+        const responseClone = response.clone()
 
-      return fetch(event.request)
-        .then((response) => {
-          const responseClone = response.clone()
-
-          caches.open(CACHE_NAME).then((cache) => {
-            cache.put(event.request, responseClone)
-          })
-
-          return response
+        caches.open(CACHE_NAME).then((cache) => {
+          cache.put(event.request, responseClone)
         })
-        .catch(() => caches.match('/index.html'))
-    }),
+
+        return response
+      })
+      .catch(() => caches.match(event.request).then((cached) => cached ?? caches.match('/index.html'))),
   )
 })
